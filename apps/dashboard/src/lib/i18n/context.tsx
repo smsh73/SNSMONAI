@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from "react";
 import { translations, Locale } from "./translations";
 
 type Translations = typeof translations[Locale];
@@ -15,33 +15,32 @@ const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 const STORAGE_KEY = "snsmon-locale";
 
-export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("en");
-  const [isInitialized, setIsInitialized] = useState(false);
+// Get initial locale synchronously to avoid flash
+function getInitialLocale(): Locale {
+  if (typeof window === "undefined") return "en";
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY) as Locale | null;
+    if (saved && translations[saved]) return saved;
+  } catch {}
+  return "en";
+}
 
-  // Load locale from localStorage on mount
-  useEffect(() => {
-    const savedLocale = localStorage.getItem(STORAGE_KEY) as Locale | null;
-    if (savedLocale && translations[savedLocale]) {
-      setLocaleState(savedLocale);
-    }
-    setIsInitialized(true);
-  }, []);
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [locale, setLocaleState] = useState<Locale>(getInitialLocale);
 
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale);
-    localStorage.setItem(STORAGE_KEY, newLocale);
+    try {
+      localStorage.setItem(STORAGE_KEY, newLocale);
+    } catch {}
   }, []);
 
-  const t = translations[locale];
+  const t = useMemo(() => translations[locale], [locale]);
 
-  // Prevent hydration mismatch by not rendering until initialized
-  if (!isInitialized) {
-    return null;
-  }
+  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
 
   return (
-    <I18nContext.Provider value={{ locale, setLocale, t }}>
+    <I18nContext.Provider value={value}>
       {children}
     </I18nContext.Provider>
   );

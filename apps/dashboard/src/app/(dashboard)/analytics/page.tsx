@@ -1,19 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { TrendingUp, TrendingDown, Calendar, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  SentimentTrendChart,
-  PlatformDistributionChart,
-  MentionsTimelineChart,
-  EmotionDetectionChart,
-  generateSampleEmotionData,
-} from "@/components/charts";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/context";
+
+// Dynamic imports for heavy chart components
+const SentimentTrendChart = dynamic(
+  () => import("@/components/charts/sentiment-trend-chart").then(mod => ({ default: mod.SentimentTrendChart })),
+  { ssr: false, loading: () => <ChartSkeleton height={240} /> }
+);
+const PlatformDistributionChart = dynamic(
+  () => import("@/components/charts/platform-distribution-chart").then(mod => ({ default: mod.PlatformDistributionChart })),
+  { ssr: false, loading: () => <ChartSkeleton height={240} /> }
+);
+const MentionsTimelineChart = dynamic(
+  () => import("@/components/charts/mentions-timeline-chart").then(mod => ({ default: mod.MentionsTimelineChart })),
+  { ssr: false, loading: () => <ChartSkeleton height={200} /> }
+);
+const EmotionDetectionChart = dynamic(
+  () => import("@/components/charts/emotion-detection-chart").then(mod => ({ default: mod.EmotionDetectionChart })),
+  { ssr: false, loading: () => <ChartSkeleton height={300} /> }
+);
+const generateSampleEmotionData = () => {
+  // Simple inline data generator to avoid importing the heavy module
+  return [
+    { time: "00:00", joy: 20, trust: 30, fear: 15, surprise: 10, sadness: 12, disgust: 8, anger: 10, anticipation: 25 },
+    { time: "04:00", joy: 18, trust: 28, fear: 18, surprise: 12, sadness: 15, disgust: 10, anger: 12, anticipation: 22 },
+    { time: "08:00", joy: 35, trust: 40, fear: 12, surprise: 15, sadness: 8, disgust: 5, anger: 8, anticipation: 35 },
+    { time: "12:00", joy: 45, trust: 42, fear: 10, surprise: 20, sadness: 10, disgust: 8, anger: 15, anticipation: 40 },
+    { time: "16:00", joy: 38, trust: 38, fear: 15, surprise: 18, sadness: 12, disgust: 10, anger: 18, anticipation: 35 },
+    { time: "20:00", joy: 25, trust: 32, fear: 20, surprise: 15, sadness: 18, disgust: 12, anger: 22, anticipation: 28 },
+  ];
+};
+
+function ChartSkeleton({ height }: { height: number }) {
+  return (
+    <Card className="border shadow-sm">
+      <CardContent className="p-4">
+        <div className="animate-pulse" style={{ height }}>
+          <div className="h-4 w-32 bg-muted rounded mb-4" />
+          <div className="h-full bg-muted/50 rounded" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 const weeklyData = [
   { date: "Mon", mentions: 375000, positive: 45, negative: 25, neutral: 30, reach: 75000000 },
