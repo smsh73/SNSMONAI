@@ -26,17 +26,9 @@ const EmotionDetectionChart = dynamic(
   () => import("@/components/charts/emotion-detection-chart").then(mod => ({ default: mod.EmotionDetectionChart })),
   { ssr: false, loading: () => <ChartSkeleton height={300} /> }
 );
-const generateSampleEmotionData = () => {
-  // Simple inline data generator to avoid importing the heavy module
-  return [
-    { time: "00:00", joy: 20, trust: 30, fear: 15, surprise: 10, sadness: 12, disgust: 8, anger: 10, anticipation: 25 },
-    { time: "04:00", joy: 18, trust: 28, fear: 18, surprise: 12, sadness: 15, disgust: 10, anger: 12, anticipation: 22 },
-    { time: "08:00", joy: 35, trust: 40, fear: 12, surprise: 15, sadness: 8, disgust: 5, anger: 8, anticipation: 35 },
-    { time: "12:00", joy: 45, trust: 42, fear: 10, surprise: 20, sadness: 10, disgust: 8, anger: 15, anticipation: 40 },
-    { time: "16:00", joy: 38, trust: 38, fear: 15, surprise: 18, sadness: 12, disgust: 10, anger: 18, anticipation: 35 },
-    { time: "20:00", joy: 25, trust: 32, fear: 20, surprise: 15, sadness: 18, disgust: 12, anger: 22, anticipation: 28 },
-  ];
-};
+
+// Import sample data generator from chart module
+import { generateSampleEmotionData } from "@/components/charts/emotion-detection-chart";
 
 function ChartSkeleton({ height }: { height: number }) {
   return (
