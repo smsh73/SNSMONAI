@@ -1,0 +1,623 @@
+// SNSMON-AI Database Schema
+// Social Media Monitoring System for Indonesian Government
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Organization & Users
+// ============================================
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  planType  PlanType @default(FREE)
+
+  // Settings
+  settings  Json     @default("{}")
+  limits    Json     @default("{}")
+
+  // Status
+  isActive  Boolean  @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users            User[]
+  apiKeys          ApiKey[]
+  keywords         Keyword[]
+  socialAccounts   SocialAccount[]
+  schedules        Schedule[]
+  regionConfigs    RegionConfig[]
+  monitoringTargets MonitoringTarget[]
+  alertRules       AlertRule[]
+  alerts           Alert[]
+  reports          Report[]
+
+  @@index([slug])
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+
+  // Profile
+  email          String   @unique
+  name           String
+  avatarUrl      String?
+  passwordHash   String?
+
+  // Role & permissions
+  role           UserRole @default(VIEWER)
+  permissions    String[] @default([])
+
+  // Preferences
+  preferences    Json     @default("{}")
+
+  // Status
+  isActive       Boolean  @default(true)
+  lastLoginAt    DateTime?
+
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Alert acknowledgements
+  acknowledgedAlerts Alert[] @relation("AcknowledgedBy")
+  resolvedAlerts     Alert[] @relation("ResolvedBy")
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+// ============================================
+// API Key Management
+// ============================================
+
+model ApiKey {
+  id             String     @id @default(cuid())
+  organizationId String
+
+  // Key details
+  keyType        ApiKeyType
+  provider       String
+  name           String
+
+  // Encrypted credentials
+  encryptedApiKey     String
+  encryptedSecretKey  String?
+  encryptedAccessToken String?
+
+  // Additional config
+  config         Json       @default("{}")
+
+  // Usage tracking
+  usageCurrent   Int        @default(0)
+  usageLimit     Int        @default(10000)
+  usageResetAt   DateTime?
+
+  // Status
+  isActive       Boolean    @default(true)
+  lastValidated  DateTime?
+  expiresAt      DateTime?
+
+  // Timestamps
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider, name])
+  @@index([organizationId])
+  @@index([keyType])
+}
+
+// ============================================
+// Keyword Management
+// ============================================
+
+model Keyword {
+  id             String          @id @default(cuid())
+  organizationId String
+
+  // Keyword details
+  category       KeywordCategory
+  name           String
+  description    String?
+
+  // Keywords (stored as JSON array)
+  keywords       Json            @default("[]")
+  excludeKeywords String[]       @default([])
+
+  // Match settings
+  matchSettings  Json            @default("{}")
+
+  // Scope
+  platforms      Platform[]      @default([])
+  regions        String[]        @default([])
+
+  // Status
+  isActive       Boolean         @default(true)
+
+  // Timestamps
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  // Relations
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  targets        MonitoringTarget[]
+
+  @@index([organizationId])
+  @@index([category])
+}
+
+// ============================================
+// Social Account Management
+// ============================================
+
+model SocialAccount {
+  id             String      @id @default(cuid())
+  organizationId String
+
+  // Account info
+  platform       Platform
+  accountId      String
+  accountName    String
+  accountType    AccountType @default(MONITORED)
+  profileUrl     String?
+
+  // Credentials (encrypted)
+  accessToken    String?
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+
+  // Monitoring settings
+  collectPosts   Boolean     @default(true)
+  collectComments Boolean    @default(true)
+  collectMentions Boolean    @default(true)
+  collectDMs     Boolean     @default(false)
+  collectStories Boolean     @default(false)
+
+  // Sync status
+  lastSyncAt     DateTime?
+  postsCollected Int         @default(0)
+  mentionsCollected Int      @default(0)
+  syncErrors     String[]    @default([])
+
+  // Status
+  isActive       Boolean     @default(true)
+
+  // Timestamps
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, platform, accountId])
+  @@index([organizationId])
+  @@index([platform])
+}
+
+// ============================================
+// Schedule Management
+// ============================================
+
+model Schedule {
+  id             String     @id @default(cuid())
+  organizationId String
+
+  // Schedule details
+  name           String
+  description    String?
+  jobType        JobType
+
+  // Schedule definition
+  scheduleType   ScheduleType @default(CRON)
+  cronExpression String?
+  intervalMs     Int?
+  executeAt      DateTime?
+
+  // Job config
+  config         Json       @default("{}")
+  priority       JobPriority @default(MEDIUM)
+  maxRetries     Int        @default(3)
+  timeoutMs      Int        @default(300000)
+
+  // Status
+  isActive       Boolean    @default(true)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  lastStatus     JobStatus  @default(PENDING)
+  lastError      String?
+
+  // Timestamps
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jobLogs        JobLog[]
+
+  @@index([organizationId])
+  @@index([jobType])
+  @@index([nextRunAt])
+}
+
+model JobLog {
+  id          String    @id @default(cuid())
+  scheduleId  String
+
+  // Execution details
+  status      JobStatus
+  startedAt   DateTime
+  completedAt DateTime?
+  duration    Int?      // milliseconds
+
+  // Results
+  result      Json?
+  error       String?
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  schedule    Schedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId])
+  @@index([startedAt])
+}
+
+// ============================================
+// Region Configuration
+// ============================================
+
+model RegionConfig {
+  id             String   @id @default(cuid())
+  organizationId String
+
+  // Enabled regions
+  enabledCountries  String[] @default(["ID"])
+  enabledProvinces  String[] @default([])
+  enabledCities     String[] @default([])
+
+  // Regional overrides
+  regionalKeywords  Json     @default("[]")
+  regionalAlerts    Json     @default("[]")
+
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId])
+}
+
+// ============================================
+// Monitoring Targets
+// ============================================
+
+model MonitoringTarget {
+  id             String     @id @default(cuid())
+  organizationId String
+
+  // Target details
+  name           String
+  description    String?
+  targetType     TargetType
+
+  // Tracking
+  keywords       String[]   @default([])
+  hashtags       String[]   @default([])
+  accounts       String[]   @default([])
+
+  // Scope
+  platforms      Platform[] @default([])
+  regions        String[]   @default([])
+
+  // Status
+  isActive       Boolean    @default(true)
+
+  // Timestamps
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  linkedKeywords Keyword[]
+  alertRules     AlertRule[]
+
+  @@index([organizationId])
+  @@index([targetType])
+}
+
+// ============================================
+// Alerts
+// ============================================
+
+model AlertRule {
+  id             String        @id @default(cuid())
+  organizationId String
+  targetId       String?
+
+  // Rule details
+  name           String
+  description    String?
+  alertType      AlertType
+
+  // Condition
+  condition      Json
+
+  // Notification channels
+  channels       Json          @default("[]")
+
+  // Settings
+  severity       AlertSeverity @default(MEDIUM)
+  cooldownMinutes Int          @default(30)
+
+  // Status
+  isActive       Boolean       @default(true)
+
+  // Timestamps
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  target         MonitoringTarget? @relation(fields: [targetId], references: [id], onDelete: SetNull)
+  alerts         Alert[]
+
+  @@index([organizationId])
+  @@index([alertType])
+}
+
+model Alert {
+  id             String        @id @default(cuid())
+  organizationId String
+  ruleId         String
+
+  // Alert details
+  title          String
+  description    String?
+  severity       AlertSeverity
+  status         AlertStatus   @default(ACTIVE)
+
+  // Trigger data
+  triggerData    Json
+
+  // Related content
+  relatedPostIds String[]      @default([])
+  relatedTopics  String[]      @default([])
+
+  // Resolution
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  resolvedById     String?
+  resolvedAt       DateTime?
+  resolutionNotes  String?
+
+  // Timestamps
+  triggeredAt    DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rule           AlertRule     @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  acknowledgedBy User?         @relation("AcknowledgedBy", fields: [acknowledgedById], references: [id])
+  resolvedBy     User?         @relation("ResolvedBy", fields: [resolvedById], references: [id])
+
+  @@index([organizationId])
+  @@index([severity])
+  @@index([status])
+  @@index([triggeredAt])
+}
+
+// ============================================
+// Reports
+// ============================================
+
+model Report {
+  id             String     @id @default(cuid())
+  organizationId String
+
+  // Report details
+  name           String
+  description    String?
+  reportType     ReportType
+
+  // Content config
+  sections       String[]   @default([])
+  platforms      Platform[] @default([])
+  regions        String[]   @default([])
+  targetIds      String[]   @default([])
+
+  // Schedule (optional)
+  scheduleType   ScheduleType?
+  cronExpression String?
+  recipients     String[]   @default([])
+
+  // Format
+  format         ReportFormat @default(PDF)
+
+  // Status
+  isActive       Boolean    @default(true)
+  lastGeneratedAt DateTime?
+
+  // Timestamps
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  generatedReports GeneratedReport[]
+
+  @@index([organizationId])
+}
+
+model GeneratedReport {
+  id          String   @id @default(cuid())
+  reportId    String
+
+  // File info
+  fileName    String
+  fileUrl     String
+  fileSize    Int
+
+  // Period
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // Timestamps
+  generatedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  // Relations
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([generatedAt])
+}
+
+// ============================================
+// Enums
+// ============================================
+
+enum PlanType {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum UserRole {
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+enum ApiKeyType {
+  AI
+  SOCIAL
+  THIRD_PARTY
+}
+
+enum Platform {
+  TWITTER
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  WHATSAPP
+  LINE
+  TELEGRAM
+  YOUTUBE
+}
+
+enum KeywordCategory {
+  CRISIS_CIVIL_UNREST
+  CRISIS_VIOLENCE
+  CRISIS_DISASTER
+  CRISIS_INCIDENT
+  GOVERNMENT
+  BRAND
+  COMPETITOR
+  CUSTOM
+}
+
+enum AccountType {
+  OWNED
+  MONITORED
+  COMPETITOR
+}
+
+enum ScheduleType {
+  CRON
+  INTERVAL
+  ONCE
+}
+
+enum JobType {
+  DATA_COLLECTION
+  SENTIMENT_ANALYSIS
+  TREND_CALCULATION
+  REPORT_GENERATION
+  ALERT_EVALUATION
+  DATA_CLEANUP
+  API_HEALTH_CHECK
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+enum JobPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TargetType {
+  BRAND
+  COMPETITOR
+  GOVERNMENT
+  ORGANIZATION
+  TOPIC
+  CRISIS
+}
+
+enum AlertType {
+  VOLUME_SPIKE
+  SENTIMENT_DROP
+  KEYWORD_MATCH
+  CRISIS_DETECTED
+  COMPETITOR_SPIKE
+  INFLUENCER_MENTION
+  CUSTOM_METRIC
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum ReportFormat {
+  PDF
+  EXCEL
+  HTML
+}
